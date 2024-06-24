@@ -11,18 +11,20 @@ close all;
 %% PARAMETERS
 
 % environment
-l   = 30;       % maximum depth of the water column [m]
-l_t = 10;       % depth of the thermocline [m]
-D_e = 100;      % eddy diffusion coefficient of epilimnion [m²·day⁻¹]
-D_h = 1;        % eddy diffusion coefficient of hypolimnion [m²·day⁻¹]
-a_0 = 0.2;      % background turbidity [m⁻¹]
-r   = 0.9;      % nutrient recycling rate
-E   = 0.05;     % sediment interface permeability [m⁻¹]
-w_t = 2;        % width of the thermocline [m]
-N_0 = 50;       % sediment nutrient concentration [μg(P)·L⁻¹]
-I_0 = 1000;     % light intensity at the surface [μmol(photons)·m⁻²·s⁻¹]
+l    = 30;      % maximum depth of the water column [m]
+l_t  = 10;      % depth of the thermocline [m]
+D_e  = 100;     % eddy diffusion coefficient of epilimnion [m²·day⁻¹]
+D_h  = 1;       % eddy diffusion coefficient of hypolimnion [m²·day⁻¹]
+w_t  = 2;       % width of the thermocline [m]
+a_bg = 0.2;     % background turbidity [m⁻¹]
 
-% species 1
+% resources
+E   = 0.05;    % sediment interface permeability [m⁻¹]
+N_0 = 50;      % sediment nutrient concentration [μg(P)·L⁻¹]
+I_0 = 1000;    % light intensity at the surface [μmol(photons)·m⁻²·s⁻¹]
+r   = 0.9;     % nutrient recycling rate
+
+% species 1 (BR)
 mu_1 = 0.5;     % maximuum growth rate [day⁻¹]
 K_1  = 0.2;     % half-saturation constant for nutrient dependency [μg(P)·L⁻¹]
 H_1  = 100;     % half-saturation constant for light dependency [μmol(photons)·m⁻²·s⁻¹]
@@ -32,7 +34,7 @@ q_1  = 1e-3;    % algal nutrient quota [μg(P)·L⁻¹·[cells·mL⁻¹]⁻¹]
 a_1  = 1e-5;    % algal absorption coefficient [m⁻¹·[cells·mL⁻¹]⁻¹]
 A1_0 = 1000;    % initial algal biomass [cells·mL⁻¹]
     
-% species 2
+% species 2 (sinking)
 mu_2 = 0.5;     % maximuum growth rate [day⁻¹]
 K_2  = 2;       % half-saturation constant for nutrient dependency [μg(P)·L⁻¹]
 H_2  = 10;      % half-saturation constant for light dependency [μmol(photons)·m⁻²·s⁻¹]
@@ -50,7 +52,7 @@ Z    = linspace(0, l, n);
 
 % vector of parameters
 p = [dz; n; n_t; ...
-     D_e; D_h; a_0; r; E; w_t; N_; I_0; ...
+     D_e; D_h; a_bg; r; E; w_t; N_; I_0; ...
      mu_1; K_1; H_1; m_1; v_1; q_1; a_1; ...
      mu_2; K_2; H_2; m_2; v_2; q_2; a_2];
 
@@ -105,7 +107,7 @@ V2     = zeros(n, 1);
 % computation of light intensity
 I(1) = I_0;
 for i = 2:n
-    I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_0) * I(i - 1) * dz;
+    I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_bg) * I(i - 1) * dz;
 end
     
 % computation of growth rates
@@ -219,7 +221,7 @@ function dU_dt = equations(t, U, p)
     n_t  = p(3);
     D_e  = p(4);
     D_h  = p(5);
-    a_0  = p(6);
+    a_bg  = p(6);
     r    = p(7);
     E    = p(8);
     w_t  = p(9);
@@ -289,7 +291,7 @@ function dU_dt = equations(t, U, p)
     % computation of light intensity (I)
     I(1) = I_0;
     for i = 2:n
-        I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_0) * I(i - 1) * dz;
+        I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_bg) * I(i - 1) * dz;
     end
     
     % computation of growth rates (G1 & G2)
