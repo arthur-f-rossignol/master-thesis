@@ -43,7 +43,7 @@ a_2  = 1e-5;    % algal absorption coefficient [m⁻¹·[cells·mL⁻¹]⁻¹]
 A2_0 = 1000;    % initial algal biomass [cells·mL⁻¹]
 
 % spatial discretization
-dz   = 0.15;
+dz   = 0.1;
 n    = floor(l / dz);
 n_t  = floor(l_t / dz);
 Z    = linspace(0, l, n);
