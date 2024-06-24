@@ -1,5 +1,6 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%% TWO-SPECIES COMPETITION %%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Master Thesis %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% Arthur F. Rossignol %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 cd "/working_directory"
@@ -10,36 +11,36 @@ close all;
 %% PARAMETERS
 
 % environment
-l   = 30;       % maximum depth of the water column 
-l_t = 10;       % depth of the thermocline
-D_e = 100;      % eddy diffusion coefficient of epilimnion
-D_h = 1;        % eddy diffusion coefficient of hypolimnion
-a_0 = 0.2;      % background turbidity
+l   = 30;       % maximum depth of the water column [m]
+l_t = 10;       % depth of the thermocline [m]
+D_e = 100;      % eddy diffusion coefficient of epilimnion [m²·day⁻¹]
+D_h = 1;        % eddy diffusion coefficient of hypolimnion [m²·day⁻¹]
+a_0 = 0.2;      % background turbidity [m⁻¹]
 r   = 0.9;      % nutrient recycling rate
-E   = 0.05;     % sediment layer permeability
-w_t = 2;        % width of the thermocline 
-N_0 = 50;       % sediment nutrient concentration
-I_0 = 1000;     % light intensity at the surface
+E   = 0.05;     % sediment interface permeability [m⁻¹]
+w_t = 2;        % width of the thermocline [m]
+N_0 = 50;       % sediment nutrient concentration [μg(P)·L⁻¹]
+I_0 = 1000;     % light intensity at the surface [μmol(photons)·m⁻²·s⁻¹]
 
 % species 1
-mu_1 = 0.5;     % maximuum growth rate
-K_1  = 0.2;     % half-saturation constant for nutrient dependency
-H_1  = 100;     % half-saturation constant for light dependency
-m_1  = 0.2;     % mortality
-v_1  = 0.3;     % maximum vertical velocity
-q_1  = 1e-3;    % algal nutrient quota
-a_1  = 1e-5;    % algal absorption coefficient  
-A1_0 = 1000;    % initial algal biomass
+mu_1 = 0.5;     % maximuum growth rate [day⁻¹]
+K_1  = 0.2;     % half-saturation constant for nutrient dependency [μg(P)·L⁻¹]
+H_1  = 100;     % half-saturation constant for light dependency [μmol(photons)·m⁻²·s⁻¹]
+m_1  = 0.2;     % mortality [day⁻¹]
+v_1  = 0.3;     % maximum vertical velocity [m·day⁻¹]
+q_1  = 1e-3;    % algal nutrient quota [μg(P)·L⁻¹·[cells·mL⁻¹]⁻¹]
+a_1  = 1e-5;    % algal absorption coefficient [m⁻¹·[cells·mL⁻¹]⁻¹]
+A1_0 = 1000;    % initial algal biomass [cells·mL⁻¹]
     
 % species 2
-mu_2 = 0.5;     % maximuum growth rate
-K_2  = 2;       % half-saturation constant for nutrient dependency
-H_2  = 10;      % half-saturation constant for light dependency
-m_2  = 0.2;     % mortality
-v_2  = 0.3;     % maximum vertical velocity
-q_2  = 1e-3;    % algal nutrient quota
-a_2  = 1e-5;    % algal absorption coefficient  
-A2_0 = 1000;    % initial algal biomass
+mu_2 = 0.5;     % maximuum growth rate [day⁻¹]
+K_2  = 2;       % half-saturation constant for nutrient dependency [μg(P)·L⁻¹]
+H_2  = 10;      % half-saturation constant for light dependency [μmol(photons)·m⁻²·s⁻¹]
+m_2  = 0.2;     % mortality [day⁻¹]
+v_2  = 0.3;     % maximum vertical velocity [m·day⁻¹]
+q_2  = 1e-3;    % algal nutrient quota [μg(P)·L⁻¹·[cells·mL⁻¹]⁻¹]
+a_2  = 1e-5;    % algal absorption coefficient [m⁻¹·[cells·mL⁻¹]⁻¹]
+A2_0 = 1000;    % initial algal biomass [cells·mL⁻¹]
 
 % spatial discretization
 dz   = 0.15;
@@ -130,7 +131,7 @@ for i = 1:n
     D(i) = D_e + (D_h - D_e) / (1 + exp((i - n_t) / w_t));
 end
 
-%% PLOTING
+%% PLOTTING
 
 fig = figure(1);
 
@@ -206,7 +207,7 @@ title('eddy diffusion coefficient');
 xlabel('depth');
 set(gca, 'YDir','reverse');
 
-saveas(fig, 'equilibrium.fig');
+saveas(fig, 'two-species_competition_equilibrium.fig');
 
 %% FUNCTION COMPUTING TIME DERIVATIVES
 
