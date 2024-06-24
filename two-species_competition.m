@@ -1,4 +1,7 @@
 
+%%%%%%%%%%%%%%%%%%%%%%%%% TWO-SPECIES COMPETITION %%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%% Arthur F. Rossignol %%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 cd "/working_directory"
 
 clearvars;
@@ -72,23 +75,138 @@ A2 = sol(end, (n + 1):(2 * n));
 
 %% POST-PROCESSING
 
+% computation of total biomass
 A1_e = 0;   % total biomass of S1 in epilimnion
 A1_h = 0;   % total biomass of S1 in hypolimnion
 A2_e = 0;   % total biomass of S2 in epilimnion
 A2_h = 0;   % total biomass of S2 in hypolimnion
-
 for i = 1:floor(n_t)
     A1_u = A1_u + A1(i) * dz;
     A2_u = A2_u + A2(i) * dz;
 end
-
 for i = floor(n_t + 1):n
     A1_d = A1_d + A1(i) * dz;
     A2_d = A2_d + A2(i) * dz;
 end
-
 A1_tot = A1_u + A1_d;   % total biomass of S1 in the water column
 A2_tot = A2_u + A2_d;   % total biomass of S2 in the water column
+
+% vectors
+I      = zeros(n, 1);
+D      = zeros(n, 1);
+G1     = zeros(n, 1);
+V1     = zeros(n, 1);
+dG1_dz = zeros(n, 1);
+G2     = zeros(n, 1);
+dG2_dz = zeros(n, 1);
+V2     = zeros(n, 1);
+
+% computation of light intensity
+I(1) = I_0;
+for i = 2:n
+    I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_0) * I(i - 1) * dz;
+end
+    
+% computation of growth rates
+for i = 1:n
+    G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i)))) - m_1;
+    G2(i) = mu_2 * min((N(i) / (K_2 + N(i))), (I(i) / (H_2 + I(i)))) - m_2;
+end
+
+% computation of fitness gradients
+for i = 2:(n - 1)
+    dG1_dz(i) = (G1(i + 1) - G1(i - 1)) / (2 * dz);
+    dG2_dz(i) = (G2(i + 1) - G2(i - 1)) / (2 * dz);
+end
+dG1_dz(1) = (G1(2) - G1(1)) / dz;
+dG1_dz(n) = (G1(n) - G1(n - 1)) / dz;
+dG2_dz(1) = (G2(2) - G2(1)) / dz;
+dG2_dz(n) = (G2(n) - G2(n - 1)) / dz;
+
+% computation of vertical velocities & eddy diffusion
+for i = 1:n
+    V1(i) = v_1 * dG1_dz(i) / (abs(dG1_dz(i)) + 1e-6);
+    V2(i) = v_2;
+    D(i) = D_e + (D_h - D_e) / (1 + exp((i - n_t) / w_t));
+end
+
+%% PLOTING
+
+fig = figure(1);
+
+subplot(3, 4, 1);
+plot(A1, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('algal biomass of S1');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 2);
+plot(G1, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('net growth rate of S1');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 3);
+plot(dG1_dz, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('fitness gradient of S1');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 4);
+plot(V1, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('vertical velocity of S1 (BR)');
+xlabel('depth');
+set(gca, 'YDir', 'reverse');
+
+subplot(3, 4, 5);
+plot(A2, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('algal biomass of S2');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 6);
+plot(G2, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('net growth rate of S2');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 7);
+plot(dG2_dz, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('fitness gradient of alga 2');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 8);
+plot(V2, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('vertical velocity of S2 (sinking)');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 9);
+plot(A1 + A2, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('total algal biomass');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 10);
+plot(N, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('nutreint concentration');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 11);
+plot(I, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('light intensity');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+subplot(3, 4, 12);
+plot(D, linspace(0, n * dz, n), 'LineWidth', 2.5);
+title('eddy diffusion coefficient');
+xlabel('depth');
+set(gca, 'YDir','reverse');
+
+saveas(fig, 'equilibrium.fig');
 
 %% FUNCTION COMPUTING TIME DERIVATIVES
 
@@ -162,24 +280,24 @@ function dU_dt = equations(t, U, p)
     dN_dz(2:(n - 1))  = (N(3:n) - N(1:(n - 2))) / (2 * dz);
     dN_dz2(2:(n - 1)) = (N(3:n) - 2 * N(2:(n - 1)) + N(1:(n - 2))) / (dz^2);
 
-    % computation of D
+    % computation of eddy diffusion (D)
     for i = 1:n
         D(i) = D_e + (D_h - D_e) / (1 + exp((i - n_t) / w_t));
     end
 
-    % computation of I
+    % computation of light intensity (I)
     I(1) = I_0;
     for i = 2:n
         I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_0) * I(i - 1) * dz;
     end
     
-    % computation of growth rates (G1 and G2)
+    % computation of growth rates (G1 & G2)
     for i = 1:n
         G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i)))) - m_1;
         G2(i) = mu_2 * min((N(i) / (K_2 + N(i))), (I(i) / (H_2 + I(i)))) - m_2;
     end
 
-    % computation of fitness gradients (dG1_dz and dG2_dz)
+    % computation of fitness gradients (dG1_dz & dG2_dz)
     for i = 2:(n - 1)
         dG1_dz(i) = (G1(i + 1) - G1(i - 1)) / (2 * dz);
         dG2_dz(i) = (G2(i + 1) - G2(i - 1)) / (2 * dz);
@@ -189,7 +307,7 @@ function dU_dt = equations(t, U, p)
     dG2_dz(1) = (G2(2) - G2(1)) / dz;
     dG2_dz(n) = (G2(n) - G2(n - 1)) / dz;
     
-    % computation of V1 and V2
+    % computation of vertical velocities (V1 & V2)
     for i = 1:n
         V1(i) = v_1 * dG1_dz(i) / (abs(dG1_dz(i)) + 1e-6);
         V2(i) = v_2;
