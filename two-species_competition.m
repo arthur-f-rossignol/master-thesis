@@ -296,8 +296,8 @@ function dU_dt = equations(t, U, p)
     
     % computation of growth rates (G1 & G2)
     for i = 1:n
-        G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i)))) - m_1;
-        G2(i) = mu_2 * min((N(i) / (K_2 + N(i))), (I(i) / (H_2 + I(i)))) - m_2;
+        G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i))));
+        G2(i) = mu_2 * min((N(i) / (K_2 + N(i))), (I(i) / (H_2 + I(i))));
     end
 
     % computation of fitness gradients (dG1_dz & dG2_dz)
@@ -356,31 +356,30 @@ function dU_dt = equations(t, U, p)
     
     % 1st-order spatial derivative of (D * dA1_dz)
     for i = 2:(n - 1)
-        dDA1_dz2(i) = (D(i + 1) - D(i - 1)) / dz * dA1_dz(i) + D(i) * dA1_dz2(i);
+        dDA1_dz2(i) = (D(i + 1) - D(i - 1)) / (2 * dz) * dA1_dz(i) + D(i) * dA1_dz2(i);
     end    
     dDA1_dz2(1) = (D(2) - D(1)) / dz * dA1_dz(1) + D(1) * dA1_dz2(1);
     dDA1_dz2(n) = (D(n) - D(n - 1)) / dz * dA1_dz(n) + D(n) * dA1_dz2(n);
 
     % 1st-order spatial derivative of (D * dA2_dz)
     for i = 2:(n - 1)
-        dDA2_dz2(i) = (D(i + 1) - D(i - 1)) / dz * dA2_dz(i) + D(i) * dA2_dz2(i);
+        dDA2_dz2(i) = (D(i + 1) - D(i - 1)) / (2 * dz) * dA2_dz(i) + D(i) * dA2_dz2(i);
     end    
     dDA2_dz2(1) = (D(2) - D(1)) / dz * dA2_dz(1) + D(1) * dA2_dz2(1);
     dDA2_dz2(n) = (D(n) - D(n - 1)) / dz * dA2_dz(n) + D(n) * dA2_dz2(n);
 
     % 1st-order spatial derivative of (D * dN_dz)
     for i = 2:(n - 1)
-        dDN_dz2(i) = (D(i + 1) - D(i - 1)) / dz * dN_dz(i) + D(i) * dN_dz2(i);
+        dDN_dz2(i) = (D(i + 1) - D(i - 1)) / (2 * dz) * dN_dz(i) + D(i) * dN_dz2(i);
     end
     dDN_dz2(1) = (D(2) - D(1)) / dz * dN_dz(1) + D(1) * dN_dz2(1);
     dDN_dz2(n) = (D(n) - D(n - 1)) / dz * dN_dz(n) + D(n) * dN_dz2(n);
 
     % time derivatives of A1, A2, N
     for i = 1:n 
-        dA1_dt(i) = G1(i) * A1(i) - dV1A1_dz(i) + dDA1_dz2(i);
-        dA2_dt(i) = G2(i) * A2(i) - dV2A2_dz(i) + dDA2_dz2(i);
-        dN_dt(i)  = q_1 * (r * m_1 - mu_1 * g(N(i), I(i), K_1, H_1)) * A1(i) ...
-                     + q_2 * (r * m_2 - mu_2 * g(N(i), I(i), K_2, H_2)) * A2(i) ...
+        dA1_dt(i) = (G1(i) - m_1) * A1(i) - dV1A1_dz(i) + dDA1_dz2(i);
+        dA2_dt(i) = (G2(i) - m_2) * A2(i) - dV2A2_dz(i) + dDA2_dz2(i);
+        dN_dt(i)  = q_1 * (r * m_1 - G1(i)) * A1(i) + q_2 * (r * m_2 - G1(i)) * A2(i) ...
                      + dDN_dz2(i);
     end
 
