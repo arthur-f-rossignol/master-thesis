@@ -221,7 +221,7 @@ function dU_dt = equations(t, U, p)
     n_t  = p(3);
     D_e  = p(4);
     D_h  = p(5);
-    a_bg = p(6);
+    a_0  = p(6);
     r    = p(7);
     E    = p(8);
     w_t  = p(9);
@@ -256,20 +256,31 @@ function dU_dt = equations(t, U, p)
     dA2_dz   = zeros(n, 1);
     dA2_dz2  = zeros(n, 1);
     dA2_dt   = zeros(n, 1);
-    dV2A2_dz = zeros(n, 1);
     dDA2_dz2 = zeros(n, 1);
     G2       = zeros(n, 1);
-    dG2_dz   = zeros(n, 1);
-    V2       = zeros(n, 1);
     dN_dz    = zeros(n, 1);
-    dN_dz2   = zeros(n, 1);
     dN_dt    = zeros(n, 1);
+    dN_dz2   = zeros(n, 1);
     dDN_dz2  = zeros(n, 1);
 
     % starting values of A1, A2, N
     A1 = U(1:n);
     A2 = U((n + 1):(2 * n));
     N  = U((2 * n + 1):(3 * n));
+
+    % computation of eddy diffusion (D)
+    for i = 1:n
+        D(i) = D_h + (D_e - D_h) / (1 + exp((i - n_t) * dz / w_t));
+    end
+
+    % computation of light intensity
+    I(1) = I_0;
+    for i = 2:n
+        trap = trapz(1:i, a_0 * ones(1, i) ...
+                        + a_1 * transpose(A1(1:i)) ...
+                        + a_2 * transpose(A2(1:i)));
+        I(i) = I_0 * exp(- dz * trap(1));
+    end
 
     % spatial derivatives of A1
     dA1_dz(2:(n - 1))  = (A1(3:n) - A1(1:(n - 2))) / (2 * dz);
@@ -283,17 +294,6 @@ function dU_dt = equations(t, U, p)
     dN_dz(2:(n - 1))  = (N(3:n) - N(1:(n - 2))) / (2 * dz);
     dN_dz2(2:(n - 1)) = (N(3:n) - 2 * N(2:(n - 1)) + N(1:(n - 2))) / (dz^2);
 
-    % computation of eddy diffusion (D)
-    for i = 1:n
-        D(i) = D_e + (D_h - D_e) / (1 + exp((i - n_t) / w_t));
-    end
-
-    % computation of light intensity (I)
-    I(1) = I_0;
-    for i = 2:n
-        I(i) = I(i - 1) - (a_1 * A1(i - 1) + a_2 * A2(i - 1) + a_bg) * I(i - 1) * dz;
-    end
-    
     % computation of growth rates (G1 & G2)
     for i = 1:n
         G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i))));
@@ -303,30 +303,46 @@ function dU_dt = equations(t, U, p)
     % computation of fitness gradients (dG1_dz & dG2_dz)
     for i = 2:(n - 1)
         dG1_dz(i) = (G1(i + 1) - G1(i - 1)) / (2 * dz);
-        dG2_dz(i) = (G2(i + 1) - G2(i - 1)) / (2 * dz);
     end
     dG1_dz(1) = (G1(2) - G1(1)) / dz;
     dG1_dz(n) = (G1(n) - G1(n - 1)) / dz;
-    dG2_dz(1) = (G2(2) - G2(1)) / dz;
-    dG2_dz(n) = (G2(n) - G2(n - 1)) / dz;
     
     % computation of vertical velocities (V1 & V2)
     for i = 1:n
-        V1(i) = v_1 * dG1_dz(i) / (abs(dG1_dz(i)) + 1e-6);
-        V2(i) = v_2;
+        V1(i) = v_1 * dG1_dz(i) / (abs(dG1_dz(i)) + 1e-3);
     end
-
+   
     % boundary conditions at the surface
-    dA1_dz(1) = (V1(1) / D(1)) * A1(1);
-    dA2_dz(1) = (V2(1) / D(1)) * A2(1);
-    dN_dz(1)  = 0;
-    
-    % boundary conditions at the bottom
-    dA1_dz(n) = (V1(n) / D(n)) * A1(n);
-    dA2_dz(n) = (V2(n) / D(n)) * A2(n);
-    dN_dz(n)  = E * (N_0 - N(n));
+    A1(1) = A1(2) / (dz * (V1(1) / D(1)) + 1); 
+    A2(1) = A2(2) / (dz * (v_2 / D(1)) + 1);
+    N(1)  = N(2);
 
-    % 1st-order spatial derivative of (V1 * A1) 
+    % boundary conditions at the bottom
+    A1(n) = A1(n - 1) / (1 - dz * (V1(n) / D(n))); 
+    A2(n) = A2(n - 1) / (1 - dz * (v_2 / D(n))); 
+    N(n)  = (N(n - 1) + dz * E * N_0) / (1 + dz * E);
+
+    % values of the 1st spatial derivatives at the surface
+    dA1_dz(1) = (A1(2) - A1(1)) / dz;
+    dA2_dz(1) = (A2(2) - A2(1)) / dz;
+    dN_dz(1)  = (N(2) - N(1)) / dz;
+
+    % values of the 1st spatial derivatives at the bottom
+    dA1_dz(n) = (A1(n) - A1(n - 1)) / dz;
+    dA2_dz(n) = (A2(n) - A2(n - 1)) / dz;
+    dN_dz(n)  = (N(n) - N(n - 1)) / dz;
+
+    % values of the 2nd spatial derivatives at the surface
+    dA1_dz2(1) = (dA1_dz(2) - dA1_dz(1)) / dz;
+    dA2_dz2(1) = (dA2_dz(2) - dA2_dz(1)) / dz;
+    dN_dz2(1)  = (dN_dz(2) - dN_dz(1)) / dz;
+
+    % values of the 2nd spatial derivatives at the bottom
+    dA1_dz2(n) = (dA1_dz(n) - dA1_dz(n - 1)) / dz;
+    dA2_dz2(n) = (dA2_dz(n) - dA2_dz(n - 1)) / dz;
+    dN_dz2(n)  = (dN_dz(n) - dN_dz(n - 1)) / dz;
+
+    % 1st spatial derivative of (V1 * A1) 
     dV1A1_dz(3:(n - 2)) = (- V1(5:n) .* A1(5:n) ...
                            + 8 * V1(4:(n - 1)) .* A1(4:(n - 1)) ...
                            - 8 * V1(2:(n - 3)) .* A1(2:(n - 3)) ...
@@ -335,24 +351,6 @@ function dU_dt = equations(t, U, p)
     dV1A1_dz(2)     = (V1(3) * A1(3) - V1(1) * A1(1)) / (2 * dz);
     dV1A1_dz(n - 1) = (V1(n) * A1(n) - V1(n - 2) * A1(n - 2)) / (2 * dz);
     dV1A1_dz(n)     = (V1(n) * A1(n) - V1(n - 1) * A1(n - 1)) / dz;
-
-    % 1st-order spatial derivative of (V2 * A2)
-    dV2A2_dz(3:(n - 2)) = (- V2(5:n) .* A2(5:n) ...
-                           + 8 * V2(4:(n - 1)) .* A2(4:(n - 1)) ...
-                           - 8 * V2(2:(n - 3)) .* A2(2:(n - 3)) ...
-                           + V2(1:(n - 4)) .* A2(1:(n - 4))) / (12 * dz);
-    dV2A2_dz(1)     = (V2(2) * A2(2) - V2(1) * A2(1)) / dz;
-    dV2A2_dz(2)     = (V2(3) * A2(3) - V2(1) * A2(1)) / (2 * dz);
-    dV2A2_dz(n - 1) = (V2(n) * A2(n) - V2(n - 2) * A2(n - 2)) / (2 * dz);
-    dV2A2_dz(n)     = (V2(n) * A2(n) - V2(n - 1) * A2(n - 1)) / dz;
-
-    % values of 2nd-order spatial derivatives at boundaries
-    dA1_dz2(1) = (dA1_dz(2) - dA1_dz(1)) / dz;
-    dA1_dz2(n) = (dA1_dz(n) - dA1_dz(n - 1)) / dz;
-    dA2_dz2(1) = (dA2_dz(2) - dA2_dz(1)) / dz;
-    dA2_dz2(n) = (dA2_dz(n) - dA2_dz(n - 1)) / dz;
-    dN_dz2(1)  = (dN_dz(2) - dN_dz(1)) / dz;
-    dN_dz2(n)  = (dN_dz(n) - dN_dz(n - 1)) / dz;
     
     % 1st-order spatial derivative of (D * dA1_dz)
     for i = 2:(n - 1)
@@ -375,12 +373,13 @@ function dU_dt = equations(t, U, p)
     dDN_dz2(1) = (D(2) - D(1)) / dz * dN_dz(1) + D(1) * dN_dz2(1);
     dDN_dz2(n) = (D(n) - D(n - 1)) / dz * dN_dz(n) + D(n) * dN_dz2(n);
 
-    % time derivatives of A1, A2, N
+    % time derivatives of A1, A2, A1
     for i = 1:n 
         dA1_dt(i) = (G1(i) - m_1) * A1(i) - dV1A1_dz(i) + dDA1_dz2(i);
-        dA2_dt(i) = (G2(i) - m_2) * A2(i) - dV2A2_dz(i) + dDA2_dz2(i);
-        dN_dt(i)  = q_1 * (r * m_1 - G1(i)) * A1(i) + q_2 * (r * m_2 - G1(i)) * A2(i) ...
-                     + dDN_dz2(i);
+        dA2_dt(i) = (G2(i) - m_2) * A2(i) - v_2 * dA2_dz(i) + dDA2_dz2(i);
+        dN_dt(i)  = q_1 * (r * m_1 - G1(i)) * A1(i) ...
+                  + q_2 * (r * m_2 - G2(i)) * A2(i) ...
+                  + dDN_dz2(i);
     end
 
     % output
