@@ -211,7 +211,7 @@ set(gca, 'YDir','reverse');
 
 saveas(fig, 'two-species_competition_equilibrium.fig');
 
-%% FUNCTION COMPUTING TIME DERIVATIVES
+% FUNCTION COMPUTING TIME DERIVATIVES
 
 function dU_dt = equations(t, U, p)
 
@@ -245,22 +245,18 @@ function dU_dt = equations(t, U, p)
     % initialization of vectors
     I        = zeros(n, 1);
     D        = zeros(n, 1);
-    dA1_dz   = zeros(n, 1);
-    dA1_dz2  = zeros(n, 1);
     dA1_dt   = zeros(n, 1);
     dV1A1_dz = zeros(n, 1);
+    %dA1_dz   = zeros(n, 1);
     dDA1_dz2 = zeros(n, 1);
     G1       = zeros(n, 1);
     dG1_dz   = zeros(n, 1);
     V1       = zeros(n, 1);
     dA2_dz   = zeros(n, 1);
-    dA2_dz2  = zeros(n, 1);
     dA2_dt   = zeros(n, 1);
     dDA2_dz2 = zeros(n, 1);
     G2       = zeros(n, 1);
-    dN_dz    = zeros(n, 1);
     dN_dt    = zeros(n, 1);
-    dN_dz2   = zeros(n, 1);
     dDN_dz2  = zeros(n, 1);
 
     % starting values of A1, A2, N
@@ -282,106 +278,145 @@ function dU_dt = equations(t, U, p)
         I(i) = I_0 * exp(- dz * trap(1));
     end
 
-    % spatial derivatives of A1
-    dA1_dz(2:(n - 1))  = (A1(3:n) - A1(1:(n - 2))) / (2 * dz);
-    dA1_dz2(2:(n - 1)) = (A1(3:n) - 2 * A1(2:(n - 1)) + A1(1:(n - 2))) / (dz^2);
-
-    % spatial derivatives of A2
-    dA2_dz(2:(n - 1))  = (A2(3:n) - A2(1:(n - 2))) / (2 * dz);
-    dA2_dz2(2:(n - 1)) = (A2(3:n) - 2 * A2(2:(n - 1)) + A2(1:(n - 2))) / (dz^2);
-
-    % spatial derivatives of N
-    dN_dz(2:(n - 1))  = (N(3:n) - N(1:(n - 2))) / (2 * dz);
-    dN_dz2(2:(n - 1)) = (N(3:n) - 2 * N(2:(n - 1)) + N(1:(n - 2))) / (dz^2);
-
-    % computation of growth rates (G1 & G2)
+    % growth rate
     for i = 1:n
         G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i))));
         G2(i) = mu_2 * min((N(i) / (K_2 + N(i))), (I(i) / (H_2 + I(i))));
     end
-
-    % computation of fitness gradients (dG1_dz & dG2_dz)
-    for i = 2:(n - 1)
-        dG1_dz(i) = (G1(i + 1) - G1(i - 1)) / (2 * dz);
+  
+    % computation of fitness gradients (dG1_dz and dG2_dz)
+    for i = 3:(n - 2)
+        dG1_dz(i) = (- G1(i + 2) + 8 * G1(i + 1) - 8 * G1(i - 1) + G1(i - 2)) / (12 * dz);
     end
-    dG1_dz(1) = (G1(2) - G1(1)) / dz;
-    dG1_dz(n) = (G1(n) - G1(n - 1)) / dz;
-    
-    % computation of vertical velocities (V1 & V2)
+    dG1_dz(1)     = (G1(2) - G1(1)) / dz;
+    dG1_dz(2)     = (G1(3) - G1(1)) / (2 * dz);
+    dG1_dz(n - 1) = (G1(n) - G1(n - 2)) / (2 * dz);
+    dG1_dz(n)     = (G1(n) - G1(n - 1)) / dz;
+ 
+    % computation of V1
     for i = 1:n
         V1(i) = v_1 * dG1_dz(i) / (abs(dG1_dz(i)) + 1e-3);
     end
-   
-    % boundary conditions at the surface
-    A1(1) = A1(2) / (dz * (V1(1) / D(1)) + 1); 
-    A2(1) = A2(2) / (dz * (v_2 / D(1)) + 1);
-    N(1)  = N(2);
 
-    % boundary conditions at the bottom
-    A1(n) = A1(n - 1) / (1 - dz * (V1(n) / D(n))); 
-    A2(n) = A2(n - 1) / (1 - dz * (v_2 / D(n))); 
-    N(n)  = (N(n - 1) + dz * E * N_0) / (1 + dz * E);
+    % upwind second-order scheme for the 1st spatial derivative of A2
+    dA2_dz(3:(n - 1)) = (2 * A2(4:n) ...
+                      + 3 * A2(3:(n - 1)) ...
+                      - 6 * A2(2:(n - 2)) ...
+                      + A2(1:(n - 3))) / (6 * dz); 
+    dA2_dz(1)         = (A2(1) + A2(2)) / (2 * dz); 
+    dA2_dz(2)         = (- A2(1) + 5 * A2(2) + 2 * A2(3)) / (6 * dz) - dA2_dz(1);
+    dA2_dz(n)         = (A2(n - 2) - 6 * A2(n - 1) + 5 * A2(n)) / (6 * dz);
 
-    % values of the 1st spatial derivatives at the surface
-    dA1_dz(1) = (A1(2) - A1(1)) / dz;
-    dA2_dz(1) = (A2(2) - A2(1)) / dz;
-    dN_dz(1)  = (N(2) - N(1)) / dz;
+    for i = 3:(n - 2)
+        if V1(i) < 0
+            test_1 = 1;
+        else 
+            test_1 = 0;
+        end
+        if V1(i - 1) < 0
+            test_2 = 1;
+        else
+            test_2 = 0;
+        end
+        dV1A1_dz(i) = (V1(i) * (2 * A1(i) + 5 * A1(i + 1) - A1(i + 2)) * test_1 ...
+                    + V1(i) * (- A1(i - 1) + 5 * A1(i) + 2 * A1(i + 1)) * (1 - test_1) ...
+                    - V1(i - 1) * (2 * A1(i - 1) + 5 * A1(i) - A1(i + 1)) * test_2 ...
+                    - V1(i - 1) * (- A1(i - 2) + 5 * A1(i - 1) + 2 * A1(i)) * (1 - test_2)) / (6 * dz);
+    end
 
-    % values of the 1st spatial derivatives at the bottom
-    dA1_dz(n) = (A1(n) - A1(n - 1)) / dz;
-    dA2_dz(n) = (A2(n) - A2(n - 1)) / dz;
-    dN_dz(n)  = (N(n) - N(n - 1)) / dz;
+    if V1(1) < 0
+        test = 1;
+    else 
+        test = 0;
+    end
+    dV1A1_dz(1) = V1(1) * (1 - test) * (A1(1) + A1(2)) / (2 * dz) + V1(1) * test * (2 * A1(1) + 5 * A1(2) - A1(3)) / (6 * dz);
 
-    % values of the 2nd spatial derivatives at the surface
-    dA1_dz2(1) = (dA1_dz(2) - dA1_dz(1)) / dz;
-    dA2_dz2(1) = (dA2_dz(2) - dA2_dz(1)) / dz;
-    dN_dz2(1)  = (dN_dz(2) - dN_dz(1)) / dz;
+    if V1(2) < 0
+        test_1 = 1;
+    else 
+        test_1 = 0;
+    end
+    if V1(1) < 0
+        test_2 = 1;
+    else 
+        test_2 = 0;
+    end
+    dV1A1_dz(2)     = ((- V1(2) * (1 - test_1) - 3 * V1(1) * (1 - test_2) - 2 * V1(1) * test_2) * A1(1) ...
+                    + (2 * V1(2) * test_1 + 5 * V1(2) * (1 - test_1) - 5 * V1(1) * test_2 - 3 * V1(1) * (1 - test_2)) * A1(2)...
+                    + (5 * V1(2) * test_1 + 2 * V1(2) * (1 - test_1) + V1(1) * test_2) * A1(3) ...
+                    - V1(2) * test_1 * A1(4)) / (6 * dz);
 
-    % values of the 2nd spatial derivatives at the bottom
-    dA1_dz2(n) = (dA1_dz(n) - dA1_dz(n - 1)) / dz;
-    dA2_dz2(n) = (dA2_dz(n) - dA2_dz(n - 1)) / dz;
-    dN_dz2(n)  = (dN_dz(n) - dN_dz(n - 1)) / dz;
+    if V1(n - 1) < 0
+        test_1 = 1;
+    else 
+        test_1 = 0;
+    end
+    if V1(n - 2) < 0
+        test_2 = 1;
+    else 
+        test_2 = 0;
+    end
+    dV1A1_dz(n - 1) = ((V1(n - 2) * (1 - test_2)) * A1(n - 3) ...
+                    + (- V1(n - 1) * (1 - test_1) - 2 * V1(n - 2) * test_2 - 5 * V1(n - 2) * (1 - test_2)) * A1(n - 2) ...
+                    + (5 * V1(n - 1) * (1 - test_1) + 3 * V1(n - 1) * test_1 - 5 * V1(n - 2) * test_2 - 2 * V1(n - 2) * (1 - test_2)) * A1(n - 1) ...
+                    + (2 * V1(n - 1) * (1 - test_1) + V1(n - 2) * test_2) * A1(n)) / (6 * dz);
 
-    % 1st spatial derivative of (V1 * A1) 
-    dV1A1_dz(3:(n - 2)) = (- V1(5:n) .* A1(5:n) ...
-                           + 8 * V1(4:(n - 1)) .* A1(4:(n - 1)) ...
-                           - 8 * V1(2:(n - 3)) .* A1(2:(n - 3)) ...
-                           + V1(1:(n - 4)) .* A1(1:(n - 4))) / (12 * dz);
-    dV1A1_dz(1)     = (V1(2) * A1(2) - V1(1) * A1(1)) / dz;
-    dV1A1_dz(2)     = (V1(3) * A1(3) - V1(1) * A1(1)) / (2 * dz);
-    dV1A1_dz(n - 1) = (V1(n) * A1(n) - V1(n - 2) * A1(n - 2)) / (2 * dz);
-    dV1A1_dz(n)     = (V1(n) * A1(n) - V1(n - 1) * A1(n - 1)) / dz;
-    
+    if V1(n) > 0
+        test_1 = 1;
+    else 
+        test_1 = 0;
+    end
+    if V1(n - 1) > 0
+        test_2 = 1;
+    else 
+        test_2 = 0;
+    end
+    dV1A1_dz(n) = V1(n) * test_1 * (- A1(n - 1) + 7 * A1(n)) / (6 * dz) ...
+                + V1(n) * (1 - test_1) * (2 * A1(n) + A1(n - 1)) / (3 * dz) ...
+                - V1(n - 1) * (1 - test_2) * (A1(n) + A1(n - 1)) / (2 * dz) ...
+                - V1(n - 1) * test_2 * (2 * A1(n) + 5 * A1(n - 1) - A1(n - 2)) / (6 * dz);
+
+
+    % dV1A1_dz(3:(n - 2)) = (- V1(5:n) .* A1(5:n) ...
+    %                        + 8 * V1(4:(n - 1)) .* A1(4:(n - 1)) ...
+    %                        - 8 * V1(2:(n - 3)) .* A1(2:(n - 3)) ...
+    %                        + V1(1:(n - 4)) .* A1(1:(n - 4))) / (12 * dz);
+    % dV1A1_dz(1)     = (V1(2) * A1(2) - V1(1) * A1(1)) / dz;
+    % dV1A1_dz(2)     = (V1(3) * A1(3) - V1(1) * A1(1)) / (2 * dz);
+    % dV1A1_dz(n - 1) = (V1(n) * A1(n) - V1(n - 2) * A1(n - 2)) / (2 * dz);
+    % dV1A1_dz(n)     = (V1(n) * A1(n) - V1(n - 1) * A1(n - 1)) / dz;
+
     % 1st-order spatial derivative of (D * dA1_dz)
-    for i = 2:(n - 1)
-        dDA1_dz2(i) = (D(i + 1) - D(i - 1)) / (2 * dz) * dA1_dz(i) + D(i) * dA1_dz2(i);
-    end    
-    dDA1_dz2(1) = (D(2) - D(1)) / dz * dA1_dz(1) + D(1) * dA1_dz2(1);
-    dDA1_dz2(n) = (D(n) - D(n - 1)) / dz * dA1_dz(n) + D(n) * dA1_dz2(n);
+    dDA1_dz2(2:(n - 1)) = (D(2:(n - 1)) .* A1(3:n) ...
+                        - D(2:(n - 1)) .* A1(2:(n - 1)) ...
+                        - D(1:(n - 2)) .* A1(2:(n - 1)) ...
+                        + D(1:(n - 2)) .* A1(1:(n - 2))) / dz^2;     
+    dDA1_dz2(1)         = (D(1) * A1(2) - D(1) * A1(1)) / dz^2;
+    dDA1_dz2(n)         = - (D(n - 1) * A1(n) - D(n - 1) * A1(n - 1)) / dz^2;
 
     % 1st-order spatial derivative of (D * dA2_dz)
-    for i = 2:(n - 1)
-        dDA2_dz2(i) = (D(i + 1) - D(i - 1)) / (2 * dz) * dA2_dz(i) + D(i) * dA2_dz2(i);
-    end    
-    dDA2_dz2(1) = (D(2) - D(1)) / dz * dA2_dz(1) + D(1) * dA2_dz2(1);
-    dDA2_dz2(n) = (D(n) - D(n - 1)) / dz * dA2_dz(n) + D(n) * dA2_dz2(n);
+    dDA2_dz2(2:(n - 1)) = (D(2:(n - 1)) .* A2(3:n) ...
+                        - D(2:(n - 1)) .* A2(2:(n - 1)) ...
+                        - D(1:(n - 2)) .* A2(2:(n - 1)) ...
+                        + D(1:(n - 2)) .* A2(1:(n - 2))) / dz^2;    
+    dDA2_dz2(1)         = (D(1) * A2(2) - D(1) * A2(1)) / dz^2;
+    dDA2_dz2(n)         = - (D(n - 1) * A2(n) - D(n - 1) * A2(n - 1)) / dz^2;
 
     % 1st-order spatial derivative of (D * dN_dz)
-    for i = 2:(n - 1)
-        dDN_dz2(i) = (D(i + 1) - D(i - 1)) / (2 * dz) * dN_dz(i) + D(i) * dN_dz2(i);
-    end
-    dDN_dz2(1) = (D(2) - D(1)) / dz * dN_dz(1) + D(1) * dN_dz2(1);
-    dDN_dz2(n) = (D(n) - D(n - 1)) / dz * dN_dz(n) + D(n) * dN_dz2(n);
-
-    % time derivatives of A1, A2, A1
-    for i = 1:n 
-        dA1_dt(i) = (G1(i) - m_1) * A1(i) - dV1A1_dz(i) + dDA1_dz2(i);
-        dA2_dt(i) = (G2(i) - m_2) * A2(i) - v_2 * dA2_dz(i) + dDA2_dz2(i);
-        dN_dt(i)  = q_1 * (r * m_1 - G1(i)) * A1(i) ...
-                  + q_2 * (r * m_2 - G2(i)) * A2(i) ...
-                  + dDN_dz2(i);
-    end
-
+    dDN_dz2(2:(n - 1)) = (D(2:(n - 1)) .* N(3:n) ...
+                       - D(2:(n - 1)) .* N(2:(n - 1)) ...
+                       - D(1:(n - 2)) .* N(2:(n - 1)) ...
+                       + D(1:(n - 2)) .* N(1:(n - 2))) / dz^2; 
+    dDN_dz2(1)         = (D(1) * N(2) - D(1) * N(1)) / dz^2;
+    dDN_dz2(n)         = D(n) * E * (N_0 - N(n)) / dz - (D(n - 1) * N(n) - D(n - 1) * N(n - 1)) / dz^2;
+    
+    % time derivatives of A1, A2, N
+    dA1_dt(1:n) = (G1(1:n) - m_1) .* A1(1:n) - dV1A1_dz(1:n) + dDA1_dz2(1:n);
+    dA2_dt(1:n) = (G2(1:n) - m_2) .* A2(1:n) - v_2 * dA2_dz(1:n) + dDA2_dz2(1:n);
+    dN_dt(1:n)  = q_1 * (r * m_1 - G1(1:n)) .* A1(1:n) ...
+                + q_2 * (r * m_2 - G2(1:n)) .* A2(1:n) ...
+                + dDN_dz2(1:n);
+    
     % output
     dU_dt = [dA1_dt; dA2_dt; dN_dt];
 
