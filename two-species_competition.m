@@ -1,9 +1,10 @@
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%% TWO-SPECIES COMPETITION %%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Master Thesis %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%% Arthur F. Rossignol %%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-cd "/working_directory"
+%cd "/working_directory"
 
 clearvars;
 close all;
@@ -214,8 +215,8 @@ saveas(fig, 'two-species_competition_equilibrium.fig');
 % FUNCTION COMPUTING TIME DERIVATIVES
 
 function dU_dt = equations(t, U, p)
-
-    % parameters
+    
+    % parameter unpacking
     dz   = p(1);
     n    = p(2);
     n_t  = p(3);
@@ -242,175 +243,121 @@ function dU_dt = equations(t, U, p)
     q_2  = p(24);
     a_2  = p(25);
 
-    % initialization of vectors
+    % preallocation of vectors
     I        = zeros(n, 1);
-    D        = zeros(n, 1);
     dA1_dt   = zeros(n, 1);
     dV1A1_dz = zeros(n, 1);
-    %dA1_dz   = zeros(n, 1);
     dDA1_dz2 = zeros(n, 1);
-    G1       = zeros(n, 1);
     dG1_dz   = zeros(n, 1);
-    V1       = zeros(n, 1);
     dA2_dz   = zeros(n, 1);
     dA2_dt   = zeros(n, 1);
     dDA2_dz2 = zeros(n, 1);
-    G2       = zeros(n, 1);
     dN_dt    = zeros(n, 1);
     dDN_dz2  = zeros(n, 1);
 
-    % starting values of A1, A2, N
+    % starting values
     A1 = U(1:n);
     A2 = U((n + 1):(2 * n));
     N  = U((2 * n + 1):(3 * n));
 
-    % computation of eddy diffusion (D)
-    for i = 1:n
-        D(i) = D_h + (D_e - D_h) / (1 + exp((i - n_t) * dz / w_t));
-    end
+    % diffusion
+    D  = D_h + (D_e - D_h) ./ (1 + exp(((1:n)' - n_t) * dz / w_t));
+    Df = 0.5 * (D(1:(n - 1)) + D(2:n));
 
-    % computation of light intensity
-    I(1) = I_0;
+    % light intensity
+    I(1) = I_0 * exp(- a_0 * 0.5 * dz ...
+                     - a_1 * ((3 * A1(1) - A1(2)) / 8 + 3 * A1(1) / 4) * dz ...
+                     - a_2 * ((3 * A2(1) - A2(2)) / 8 + 3 * A2(1) / 4) * dz);
     for i = 2:n
-        trap = trapz(1:i, a_0 * ones(1, i) ...
-                        + a_1 * transpose(A1(1:i)) ...
-                        + a_2 * transpose(A2(1:i)));
-        I(i) = I_0 * exp(- dz * trap(1));
+        M = - a_1 * ((3 * A1(1) - A1(2)) / 8 + 3 * A1(1) / 4) * dz ...
+            - a_2 * ((3 * A2(1) - A2(2)) / 8 + 3 * A2(1) / 4) * dz;
+        for k = 2:(i - 1)
+            M = M - a_1 * A1(k) * dz ...
+                  - a_2 * A2(k) * dz;
+        end
+        I(i) = I_0 * exp(M - a_0 * (i - 0.5) * dz ...
+                           - a_1 * A1(i) * 0.5 * dz ...
+                           - a_2 * A2(i) * 0.5 * dz);
     end
 
-    % growth rate
-    for i = 1:n
-        G1(i) = mu_1 * min((N(i) / (K_1 + N(i))), (I(i) / (H_1 + I(i))));
-        G2(i) = mu_2 * min((N(i) / (K_2 + N(i))), (I(i) / (H_2 + I(i))));
-    end
+    % growth rates
+    G1 = mu_1 * min(N ./ (K_1 + N), I ./ (H_1 + I));
+    G2 = mu_2 * min(N ./ (K_2 + N), I ./ (H_2 + I));
   
-    % computation of fitness gradients (dG1_dz and dG2_dz)
-    for i = 3:(n - 2)
-        dG1_dz(i) = (- G1(i + 2) + 8 * G1(i + 1) - 8 * G1(i - 1) + G1(i - 2)) / (12 * dz);
-    end
-    dG1_dz(1)     = (G1(2) - G1(1)) / dz;
-    dG1_dz(2)     = (G1(3) - G1(1)) / (2 * dz);
-    dG1_dz(n - 1) = (G1(n) - G1(n - 2)) / (2 * dz);
-    dG1_dz(n)     = (G1(n) - G1(n - 1)) / dz;
- 
-    % computation of V1
-    for i = 1:n
-        V1(i) = v_1 * dG1_dz(i) / (abs(dG1_dz(i)) + 1e-3);
-    end
+    % fitness gradient of A_BR 
+    dG1_dz(2:(n - 1)) = (G1(3:n) - G1(1:(n - 2))) / (2 * dz);
+    dG1_dz(1)         = (G1(2) - G1(1)) / dz;
+    dG1_dz(n)         = (G1(n) - G1(n - 1)) / dz;
 
-    % upwind second-order scheme for the 1st spatial derivative of A2
+    % vertical velocity of A_BR
+    V1  = v_1 * dG1_dz ./ (abs(dG1_dz) + 1e-3);
+    V1f = 0.5 * (V1(1:(n - 1)) + V1(2:n));
+
+    % upwind second-order scheme for advection term of A_BR's biomass 
+    ii = 3:(n - 2);
+    V1f_r = V1f(ii); 
+    V1f_l = V1f(ii - 1); 
+    tr = (V1f_r > 0);
+    tl = (V1f_l > 0);
+    dV1A1_dz(ii) = (V1f_r .* (2 * A1(ii) + 5 * A1(ii + 1) - A1(ii + 2)) .* (1 - tr) ...
+                 + V1f_r .* (- A1(ii - 1) + 5 * A1(ii) + 2 * A1(ii + 1)) .* tr ...
+                 - V1f_l .* ( 2 * A1(ii - 1) + 5 * A1(ii) - A1(ii + 1)) .* (1 - tl) ...
+                 - V1f_l .* (- A1(ii - 2) + 5 * A1(ii - 1) + 2 * A1(ii)) .* tl) / (6 * dz);
+    t1 = (V1f(1) > 0);
+    dV1A1_dz(1) = V1f(1) * t1 * (A1(1) + A1(2)) / (2 * dz) ...
+                + V1f(1) * (1 - t1) * (2 * A1(1) + 5 * A1(2) - A1(3)) / (6 * dz);
+    t1 = (V1f(2) > 0);
+    t2 = (V1f(1) > 0);
+    dV1A1_dz(2) = ((- V1f(2) * t1 - 3 * V1f(1) * t2 - 2 * V1f(1) * (1 - t2)) * A1(1) ...
+                + ( 2 * V1f(2) * (1 - t1) + 5 * V1f(2) * t1 ...
+                - 5 * V1f(1) * (1 - t2) - 3 * V1f(1) * t2) * A1(2) ...
+                + ( 5 * V1f(2) * (1 - t1) + 2 * V1f(2) * t1 + V1f(1) * (1 - t2)) * A1(3) ...
+                - V1f(2) * (1 - t1) * A1(4)) / (6 * dz);
+    t1 = (V1f(n - 1) > 0);
+    t2 = (V1f(n - 2) > 0);
+    dV1A1_dz(n - 1) = (V1f(n - 2) * t2 * A1(n - 3) ...
+                    + (- V1f(n - 1) * t1 - 2 * V1f(n - 2) * (1 - t2) ...
+                    - 5 * V1f(n - 2) * t2) * A1(n - 2) ...
+                    + ( 5 * V1f(n - 1) * t1 + 3 * V1f(n - 1) * (1 - t1) ...
+                    - 5 * V1f(n - 2) * (1 - t2) - 2 * V1f(n - 2) * t2) * A1(n - 1) ...
+                    + ( 2 * V1f(n - 1) * t1 + V1f(n - 2) * (1 - t2)) * A1(n)) / (6 * dz);
+    t1 = (V1(n) > 0);
+    t2 = (V1f(n - 1) > 0);
+    dV1A1_dz(n) = V1f(n) * t1 * (- A1(n - 1) + 7 * A1(n)) / (6 * dz) ...
+                + V1f(n) * (1 - t1) * A1(n) / dz ...
+                - V1f(n - 1) * (1 - t2) * (A1(n) + A1(n - 1)) / (2 * dz) ...
+                - V1f(n - 1) * t2 * (2 * A1(n) + 5 * A1(n - 1) - A1(n - 2)) / (6 * dz);
+
+    % upwind second-order scheme for advection term of A_S's biomass 
     dA2_dz(3:(n - 1)) = (2 * A2(4:n) ...
                       + 3 * A2(3:(n - 1)) ...
                       - 6 * A2(2:(n - 2)) ...
                       + A2(1:(n - 3))) / (6 * dz); 
-    dA2_dz(1)         = (A2(1) + A2(2)) / (2 * dz); 
-    dA2_dz(2)         = (- A2(1) + 5 * A2(2) + 2 * A2(3)) / (6 * dz) - dA2_dz(1);
+    dA2_dz(1)         = (A2(1) + A2(2)) / (2 * dz);
+    dA2_dz(2)         = (- A2(1) + 5 * A2(2) + 2 * A2(3)) / (6 * dz) ...
+                      - (A2(1) + A2(2)) / (2 * dz);
     dA2_dz(n)         = (A2(n - 2) - 6 * A2(n - 1) + 5 * A2(n)) / (6 * dz);
-
-    for i = 3:(n - 2)
-        if V1(i) < 0
-            test_1 = 1;
-        else 
-            test_1 = 0;
-        end
-        if V1(i - 1) < 0
-            test_2 = 1;
-        else
-            test_2 = 0;
-        end
-        dV1A1_dz(i) = (V1(i) * (2 * A1(i) + 5 * A1(i + 1) - A1(i + 2)) * test_1 ...
-                    + V1(i) * (- A1(i - 1) + 5 * A1(i) + 2 * A1(i + 1)) * (1 - test_1) ...
-                    - V1(i - 1) * (2 * A1(i - 1) + 5 * A1(i) - A1(i + 1)) * test_2 ...
-                    - V1(i - 1) * (- A1(i - 2) + 5 * A1(i - 1) + 2 * A1(i)) * (1 - test_2)) / (6 * dz);
-    end
-
-    if V1(1) < 0
-        test = 1;
-    else 
-        test = 0;
-    end
-    dV1A1_dz(1) = V1(1) * (1 - test) * (A1(1) + A1(2)) / (2 * dz) + V1(1) * test * (2 * A1(1) + 5 * A1(2) - A1(3)) / (6 * dz);
-
-    if V1(2) < 0
-        test_1 = 1;
-    else 
-        test_1 = 0;
-    end
-    if V1(1) < 0
-        test_2 = 1;
-    else 
-        test_2 = 0;
-    end
-    dV1A1_dz(2)     = ((- V1(2) * (1 - test_1) - 3 * V1(1) * (1 - test_2) - 2 * V1(1) * test_2) * A1(1) ...
-                    + (2 * V1(2) * test_1 + 5 * V1(2) * (1 - test_1) - 5 * V1(1) * test_2 - 3 * V1(1) * (1 - test_2)) * A1(2)...
-                    + (5 * V1(2) * test_1 + 2 * V1(2) * (1 - test_1) + V1(1) * test_2) * A1(3) ...
-                    - V1(2) * test_1 * A1(4)) / (6 * dz);
-
-    if V1(n - 1) < 0
-        test_1 = 1;
-    else 
-        test_1 = 0;
-    end
-    if V1(n - 2) < 0
-        test_2 = 1;
-    else 
-        test_2 = 0;
-    end
-    dV1A1_dz(n - 1) = ((V1(n - 2) * (1 - test_2)) * A1(n - 3) ...
-                    + (- V1(n - 1) * (1 - test_1) - 2 * V1(n - 2) * test_2 - 5 * V1(n - 2) * (1 - test_2)) * A1(n - 2) ...
-                    + (5 * V1(n - 1) * (1 - test_1) + 3 * V1(n - 1) * test_1 - 5 * V1(n - 2) * test_2 - 2 * V1(n - 2) * (1 - test_2)) * A1(n - 1) ...
-                    + (2 * V1(n - 1) * (1 - test_1) + V1(n - 2) * test_2) * A1(n)) / (6 * dz);
-
-    if V1(n) > 0
-        test_1 = 1;
-    else 
-        test_1 = 0;
-    end
-    if V1(n - 1) > 0
-        test_2 = 1;
-    else 
-        test_2 = 0;
-    end
-    dV1A1_dz(n) = V1(n) * test_1 * (- A1(n - 1) + 7 * A1(n)) / (6 * dz) ...
-                + V1(n) * (1 - test_1) * (2 * A1(n) + A1(n - 1)) / (3 * dz) ...
-                - V1(n - 1) * (1 - test_2) * (A1(n) + A1(n - 1)) / (2 * dz) ...
-                - V1(n - 1) * test_2 * (2 * A1(n) + 5 * A1(n - 1) - A1(n - 2)) / (6 * dz);
-
-
-    % dV1A1_dz(3:(n - 2)) = (- V1(5:n) .* A1(5:n) ...
-    %                        + 8 * V1(4:(n - 1)) .* A1(4:(n - 1)) ...
-    %                        - 8 * V1(2:(n - 3)) .* A1(2:(n - 3)) ...
-    %                        + V1(1:(n - 4)) .* A1(1:(n - 4))) / (12 * dz);
-    % dV1A1_dz(1)     = (V1(2) * A1(2) - V1(1) * A1(1)) / dz;
-    % dV1A1_dz(2)     = (V1(3) * A1(3) - V1(1) * A1(1)) / (2 * dz);
-    % dV1A1_dz(n - 1) = (V1(n) * A1(n) - V1(n - 2) * A1(n - 2)) / (2 * dz);
-    % dV1A1_dz(n)     = (V1(n) * A1(n) - V1(n - 1) * A1(n - 1)) / dz;
-
-    % 1st-order spatial derivative of (D * dA1_dz)
-    dDA1_dz2(2:(n - 1)) = (D(2:(n - 1)) .* A1(3:n) ...
-                        - D(2:(n - 1)) .* A1(2:(n - 1)) ...
-                        - D(1:(n - 2)) .* A1(2:(n - 1)) ...
-                        + D(1:(n - 2)) .* A1(1:(n - 2))) / dz^2;     
-    dDA1_dz2(1)         = (D(1) * A1(2) - D(1) * A1(1)) / dz^2;
-    dDA1_dz2(n)         = - (D(n - 1) * A1(n) - D(n - 1) * A1(n - 1)) / dz^2;
-
-    % 1st-order spatial derivative of (D * dA2_dz)
-    dDA2_dz2(2:(n - 1)) = (D(2:(n - 1)) .* A2(3:n) ...
-                        - D(2:(n - 1)) .* A2(2:(n - 1)) ...
-                        - D(1:(n - 2)) .* A2(2:(n - 1)) ...
-                        + D(1:(n - 2)) .* A2(1:(n - 2))) / dz^2;    
-    dDA2_dz2(1)         = (D(1) * A2(2) - D(1) * A2(1)) / dz^2;
-    dDA2_dz2(n)         = - (D(n - 1) * A2(n) - D(n - 1) * A2(n - 1)) / dz^2;
-
-    % 1st-order spatial derivative of (D * dN_dz)
-    dDN_dz2(2:(n - 1)) = (D(2:(n - 1)) .* N(3:n) ...
-                       - D(2:(n - 1)) .* N(2:(n - 1)) ...
-                       - D(1:(n - 2)) .* N(2:(n - 1)) ...
-                       + D(1:(n - 2)) .* N(1:(n - 2))) / dz^2; 
-    dDN_dz2(1)         = (D(1) * N(2) - D(1) * N(1)) / dz^2;
-    dDN_dz2(n)         = D(n) * E * (N_0 - N(n)) / dz - (D(n - 1) * N(n) - D(n - 1) * N(n - 1)) / dz^2;
     
-    % time derivatives of A1, A2, N
+    % symmetric 2nd-order scheme for diffusion term of A_BR's biomass
+    dDA1_dz2(2:(n - 1)) = (Df(2:(n - 1)) .* (A1(3:n)   - A1(2:(n - 1))) ...
+                        - Df(1:(n - 2)) .* (A1(2:(n - 1)) - A1(1:(n - 2))) ) / dz^2;
+    dDA1_dz2(1)         = Df(1) * (A1(2) - A1(1)) / dz^2;
+    dDA1_dz2(n)         = - Df(n - 1) * (A1(n) - A1(n - 1)) / dz^2;
+    
+    % symmetric 2nd-order scheme for diffusion term of A_S's biomass
+    dDA2_dz2(2:(n - 1)) = (Df(2:(n - 1)) .* (A2(3:n) - A2(2:(n - 1))) ...
+                        - Df(1:(n - 2)) .* (A2(2:(n - 1)) - A2(1:(n - 2)))) / dz^2;
+    dDA2_dz2(1)         = Df(1) * (A2(2) - A2(1)) / dz^2;
+    dDA2_dz2(n)         = - Df(n - 1) * (A2(n) - A2(n - 1)) / dz^2;
+
+    % symmetric 2nd-order scheme for diffusion term of nutrients
+    dDN_dz2(2:(n - 1)) = (Df(2:(n - 1)) .* (N(3:n) - N(2:(n - 1))) ...
+                       - Df(1:(n - 2)) .* (N(2:(n - 1)) - N(1:(n - 2))) ) / dz^2;
+    dDN_dz2(1)         = Df(1) * (N(2) - N(1)) / dz^2;
+    dDN_dz2(n)         = D(n) * E * (N_0 - N(n)) / dz ...
+                       - Df(n - 1) * (N(n) - N(n - 1)) / dz^2;
+                       
+    % time derivatives of A_BR's biomass, A_S's biomass, nutrients
     dA1_dt(1:n) = (G1(1:n) - m_1) .* A1(1:n) - dV1A1_dz(1:n) + dDA1_dz2(1:n);
     dA2_dt(1:n) = (G2(1:n) - m_2) .* A2(1:n) - v_2 * dA2_dz(1:n) + dDA2_dz2(1:n);
     dN_dt(1:n)  = q_1 * (r * m_1 - G1(1:n)) .* A1(1:n) ...
@@ -419,5 +366,6 @@ function dU_dt = equations(t, U, p)
     
     % output
     dU_dt = [dA1_dt; dA2_dt; dN_dt];
-
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
